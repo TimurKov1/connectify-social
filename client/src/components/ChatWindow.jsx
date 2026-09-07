@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Avatar from "./Avatar.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useSocket } from "../context/SocketContext.jsx";
@@ -11,6 +12,7 @@ function formatTime(ts) {
 export default function ChatWindow({ otherUser, messages, onSend }) {
   const { user } = useAuth();
   const { socket, onlineUsers } = useSocket();
+  const navigate = useNavigate();
   const [text, setText] = useState("");
   const [otherTyping, setOtherTyping] = useState(false);
   const bottomRef = useRef(null);
@@ -56,6 +58,14 @@ export default function ChatWindow({ otherUser, messages, onSend }) {
   return (
     <div className="chat-window">
       <div className="chat-header">
+        <button
+          type="button"
+          className="back-button"
+          onClick={() => navigate("/chats")}
+          aria-label="Назад к списку чатов"
+        >
+          ←
+        </button>
         <Avatar
           name={otherUser.displayName}
           color={otherUser.avatarColor}

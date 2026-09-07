@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { useSocket } from "../context/SocketContext.jsx";
@@ -8,6 +8,7 @@ import ChatWindow from "../components/ChatWindow.jsx";
 
 export default function Chat() {
   const { userId } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { socket } = useSocket();
   const [conversations, setConversations] = useState([]);
@@ -70,7 +71,7 @@ export default function Chat() {
   }
 
   return (
-    <div className="chat-page">
+    <div className={`chat-page ${userId ? "has-chat" : "no-chat"}`}>
       <ConversationList conversations={conversations} activeUser={otherUser} />
 
       {!userId ? (
@@ -79,6 +80,14 @@ export default function Chat() {
         </div>
       ) : loading ? (
         <div className="chat-empty">
+          <button
+            type="button"
+            className="back-button"
+            onClick={() => navigate("/chats")}
+            aria-label="Назад к списку чатов"
+          >
+            ←
+          </button>
           <p className="muted">Загрузка...</p>
         </div>
       ) : otherUser ? (
@@ -89,6 +98,14 @@ export default function Chat() {
         />
       ) : (
         <div className="chat-empty">
+          <button
+            type="button"
+            className="back-button"
+            onClick={() => navigate("/chats")}
+            aria-label="Назад к списку чатов"
+          >
+            ←
+          </button>
           <p className="muted">Пользователь не найден</p>
         </div>
       )}
