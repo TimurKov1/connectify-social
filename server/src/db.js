@@ -50,17 +50,6 @@ export function createUser(user) {
   return user;
 }
 
-export function deleteUsers(ids) {
-  const idSet = new Set(ids);
-  const deleted = db.users.filter((u) => idSet.has(u.id));
-  db.users = db.users.filter((u) => !idSet.has(u.id));
-  db.messages = db.messages.filter(
-    (m) => !idSet.has(m.from) && !idSet.has(m.to)
-  );
-  persist();
-  return deleted;
-}
-
 export function searchUsers(query, excludeId) {
   const lower = query.trim().toLowerCase();
   return db.users
