@@ -11,6 +11,6 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: CLIENT_ORIGIN
-        value: http://localhost:5173
+        value: https://client-five-lake-22.vercel.app,http://localhost:5173
       - key: DATABASE_URL
         sync: false
