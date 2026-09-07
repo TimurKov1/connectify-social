@@ -33,9 +33,13 @@ export async function initDb() {
       "from" TEXT NOT NULL,
       "to" TEXT NOT NULL,
       text TEXT NOT NULL,
-      created_at BIGINT NOT NULL
+      created_at BIGINT NOT NULL,
+      read_at BIGINT
     )
   `);
+  await pool.query(
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at BIGINT`
+  );
   await pool.query(
     `CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages (conversation_id)`
   );
@@ -64,6 +68,7 @@ function rowToMessage(row) {
     to: row.to,
     text: row.text,
     createdAt: Number(row.created_at),
+    readAt: row.read_at === null || row.read_at === undefined ? null : Number(row.read_at),
   };
 }
 
@@ -137,6 +142,18 @@ export async function addMessage(message) {
     ]
   );
   return message;
+}
+
+export async function markMessagesAsRead(otherUserId, readerId) {
+  const convId = conversationId(otherUserId, readerId);
+  const readAt = Date.now();
+  const { rows } = await pool.query(
+    `UPDATE messages SET read_at = $1
+     WHERE conversation_id = $2 AND "to" = $3 AND read_at IS NULL
+     RETURNING id`,
+    [readAt, convId, readerId]
+  );
+  return { readAt, messageIds: rows.map((r) => r.id) };
 }
 
 export async function getConversation(userA, userB) {

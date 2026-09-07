@@ -516,10 +516,27 @@ input {
   border-bottom-left-radius: 4px;
 }
 
+.bubble-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-end;
+}
+
 .bubble-time {
   font-size: 0.68rem;
   opacity: 0.7;
-  align-self: flex-end;
+}
+
+.read-receipt {
+  font-size: 0.72rem;
+  letter-spacing: -1px;
+  opacity: 0.7;
+}
+
+.read-receipt.read {
+  opacity: 1;
+  color: #7dd3fc;
 }
 
 .chat-input-row {

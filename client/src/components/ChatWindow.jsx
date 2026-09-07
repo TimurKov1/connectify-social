@@ -94,7 +94,17 @@ export default function ChatWindow({ otherUser, messages, onSend }) {
           >
             <div className="bubble">
               <span>{m.text}</span>
-              <span className="bubble-time">{formatTime(m.createdAt)}</span>
+              <span className="bubble-meta">
+                <span className="bubble-time">{formatTime(m.createdAt)}</span>
+                {m.from === user.id && (
+                  <span
+                    className={`read-receipt${m.readAt ? " read" : ""}`}
+                    title={m.readAt ? "Прочитано" : "Отправлено"}
+                  >
+                    {m.readAt ? "✓✓" : "✓"}
+                  </span>
+                )}
+              </span>
             </div>
           </div>
         ))}

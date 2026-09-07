@@ -1,6 +1,11 @@
 import { randomUUID } from "crypto";
 import { verifyToken } from "./auth.js";
-import { addMessage, conversationId, findUserById } from "./db.js";
+import {
+  addMessage,
+  conversationId,
+  findUserById,
+  markMessagesAsRead,
+} from "./db.js";
 
 const onlineUsers = new Map();
 
@@ -34,6 +39,7 @@ export function setupSocket(io) {
         to,
         text: trimmed,
         createdAt: Date.now(),
+        readAt: null,
       };
       await addMessage(message);
 
@@ -44,6 +50,13 @@ export function setupSocket(io) {
     socket.on("typing", ({ to, isTyping }) => {
       if (!to) return;
       io.to(to).emit("typing", { from: userId, isTyping: !!isTyping });
+    });
+
+    socket.on("message:read", async ({ from }) => {
+      if (!from) return;
+      const { readAt, messageIds } = await markMessagesAsRead(from, userId);
+      if (messageIds.length === 0) return;
+      io.to(from).emit("message:seen", { by: userId, readAt, messageIds });
     });
 
     socket.on("disconnect", () => {

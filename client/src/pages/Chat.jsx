@@ -65,6 +65,24 @@ export default function Chat() {
     return () => socket.off("message:new", handleNewMessage);
   }, [socket, userId, user.id, loadConversations]);
 
+  useEffect(() => {
+    if (!socket) return;
+    function handleSeen({ by, readAt, messageIds }) {
+      if (by !== userId) return;
+      const idSet = new Set(messageIds);
+      setMessages((prev) =>
+        prev.map((m) => (idSet.has(m.id) ? { ...m, readAt } : m))
+      );
+    }
+    socket.on("message:seen", handleSeen);
+    return () => socket.off("message:seen", handleSeen);
+  }, [socket, userId]);
+
+  useEffect(() => {
+    if (!socket || !userId) return;
+    socket.emit("message:read", { from: userId });
+  }, [socket, userId, messages.length]);
+
   function handleSend(text) {
     if (!socket || !otherUser) return;
     socket.emit("message:send", { to: otherUser.id, text });
