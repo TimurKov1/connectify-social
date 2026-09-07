@@ -1,66 +1,112 @@
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import pg from "pg";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, "..", "data");
-const DB_FILE = path.join(DATA_DIR, "db.json");
+const { Pool } = pg;
 
-function loadDb() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
-  if (!fs.existsSync(DB_FILE)) {
-    const initial = { users: [], messages: [] };
-    fs.writeFileSync(DB_FILE, JSON.stringify(initial, null, 2));
-    return initial;
-  }
-  const raw = fs.readFileSync(DB_FILE, "utf-8");
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return { users: [], messages: [] };
-  }
+if (!process.env.DATABASE_URL) {
+  throw new Error(
+    "DATABASE_URL is not set. Add a Postgres connection string (e.g. from Neon) to the environment."
+  );
 }
 
-const db = loadDb();
-let saveTimer = null;
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+});
 
-function persist() {
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
-  }, 50);
+export async function initDb() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      username_lower TEXT NOT NULL UNIQUE,
+      display_name TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      avatar_color TEXT NOT NULL,
+      bio TEXT NOT NULL DEFAULT '',
+      created_at BIGINT NOT NULL
+    )
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL,
+      "from" TEXT NOT NULL,
+      "to" TEXT NOT NULL,
+      text TEXT NOT NULL,
+      created_at BIGINT NOT NULL
+    )
+  `);
+  await pool.query(
+    `CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages (conversation_id)`
+  );
+  await pool.query(
+    `CREATE INDEX IF NOT EXISTS idx_messages_parties ON messages ("from", "to")`
+  );
 }
 
-export function getUsers() {
-  return db.users;
+function rowToUser(row) {
+  return {
+    id: row.id,
+    username: row.username,
+    displayName: row.display_name,
+    passwordHash: row.password_hash,
+    avatarColor: row.avatar_color,
+    bio: row.bio,
+    createdAt: Number(row.created_at),
+  };
 }
 
-export function findUserByUsername(username) {
-  const lower = username.toLowerCase();
-  return db.users.find((u) => u.username.toLowerCase() === lower);
+function rowToMessage(row) {
+  return {
+    id: row.id,
+    conversationId: row.conversation_id,
+    from: row.from,
+    to: row.to,
+    text: row.text,
+    createdAt: Number(row.created_at),
+  };
 }
 
-export function findUserById(id) {
-  return db.users.find((u) => u.id === id);
+export async function findUserByUsername(username) {
+  const { rows } = await pool.query(
+    "SELECT * FROM users WHERE username_lower = $1",
+    [username.toLowerCase()]
+  );
+  return rows[0] ? rowToUser(rows[0]) : undefined;
 }
 
-export function createUser(user) {
-  db.users.push(user);
-  persist();
+export async function findUserById(id) {
+  const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [id]);
+  return rows[0] ? rowToUser(rows[0]) : undefined;
+}
+
+export async function createUser(user) {
+  await pool.query(
+    `INSERT INTO users (id, username, username_lower, display_name, password_hash, avatar_color, bio, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [
+      user.id,
+      user.username,
+      user.username.toLowerCase(),
+      user.displayName,
+      user.passwordHash,
+      user.avatarColor,
+      user.bio || "",
+      user.createdAt,
+    ]
+  );
   return user;
 }
 
-export function searchUsers(query, excludeId) {
-  const lower = query.trim().toLowerCase();
-  return db.users
-    .filter((u) => u.id !== excludeId)
-    .filter(
-      (u) =>
-        !lower ||
-        u.username.toLowerCase().includes(lower) ||
-        u.displayName.toLowerCase().includes(lower)
-    )
-    .map(publicUser);
+export async function searchUsers(query, excludeId) {
+  const like = `%${query.trim().toLowerCase()}%`;
+  const { rows } = await pool.query(
+    `SELECT * FROM users
+     WHERE id != $1 AND (username_lower LIKE $2 OR LOWER(display_name) LIKE $2)
+     ORDER BY username`,
+    [excludeId, like]
+  );
+  return rows.map(rowToUser).map(publicUser);
 }
 
 export function publicUser(u) {
@@ -77,38 +123,49 @@ export function conversationId(userA, userB) {
   return [userA, userB].sort().join("_");
 }
 
-export function addMessage(message) {
-  db.messages.push(message);
-  persist();
+export async function addMessage(message) {
+  await pool.query(
+    `INSERT INTO messages (id, conversation_id, "from", "to", text, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [
+      message.id,
+      message.conversationId,
+      message.from,
+      message.to,
+      message.text,
+      message.createdAt,
+    ]
+  );
   return message;
 }
 
-export function getConversation(userA, userB) {
+export async function getConversation(userA, userB) {
   const convId = conversationId(userA, userB);
-  return db.messages
-    .filter((m) => m.conversationId === convId)
-    .sort((a, b) => a.createdAt - b.createdAt);
+  const { rows } = await pool.query(
+    `SELECT * FROM messages WHERE conversation_id = $1 ORDER BY created_at ASC`,
+    [convId]
+  );
+  return rows.map(rowToMessage);
 }
 
-export function getConversationsForUser(userId) {
-  const map = new Map();
-  for (const m of db.messages) {
-    if (m.from !== userId && m.to !== userId) continue;
+export async function getConversationsForUser(userId) {
+  const { rows } = await pool.query(
+    `SELECT * FROM messages WHERE "from" = $1 OR "to" = $1 ORDER BY created_at ASC`,
+    [userId]
+  );
+
+  const lastByOther = new Map();
+  for (const row of rows) {
+    const m = rowToMessage(row);
     const otherId = m.from === userId ? m.to : m.from;
-    const existing = map.get(otherId);
-    if (!existing || existing.createdAt < m.createdAt) {
-      map.set(otherId, m);
-    }
+    lastByOther.set(otherId, m);
   }
-  return [...map.entries()]
-    .map(([otherId, lastMessage]) => {
-      const other = findUserById(otherId);
-      if (!other) return null;
-      return {
-        user: publicUser(other),
-        lastMessage,
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => b.lastMessage.createdAt - a.lastMessage.createdAt);
+
+  const results = [];
+  for (const [otherId, lastMessage] of lastByOther.entries()) {
+    const other = await findUserById(otherId);
+    if (!other) continue;
+    results.push({ user: publicUser(other), lastMessage });
+  }
+  return results.sort((a, b) => b.lastMessage.createdAt - a.lastMessage.createdAt);
 }

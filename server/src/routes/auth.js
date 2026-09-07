@@ -37,7 +37,7 @@ router.post("/register", async (req, res) => {
       .status(400)
       .json({ error: "Пароль должен содержать минимум 4 символа" });
   }
-  if (findUserByUsername(username)) {
+  if (await findUserByUsername(username)) {
     return res.status(409).json({ error: "Такое имя пользователя уже занято" });
   }
 
@@ -51,7 +51,7 @@ router.post("/register", async (req, res) => {
     bio: "",
     createdAt: Date.now(),
   };
-  createUser(user);
+  await createUser(user);
 
   const token = signToken(user);
   res.status(201).json({ token, user: publicUser(user) });
@@ -63,7 +63,7 @@ router.post("/login", async (req, res) => {
     return res.status(400).json({ error: "Укажите имя пользователя и пароль" });
   }
 
-  const user = findUserByUsername(username);
+  const user = await findUserByUsername(username);
   if (!user) {
     return res.status(401).json({ error: "Неверное имя пользователя или пароль" });
   }

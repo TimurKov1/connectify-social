@@ -10,14 +10,14 @@ const router = Router();
 
 router.use(requireAuth);
 
-router.get("/conversations", (req, res) => {
-  res.json(getConversationsForUser(req.user.id));
+router.get("/conversations", async (req, res) => {
+  res.json(await getConversationsForUser(req.user.id));
 });
 
-router.get("/with/:userId", (req, res) => {
-  const other = findUserById(req.params.userId);
+router.get("/with/:userId", async (req, res) => {
+  const other = await findUserById(req.params.userId);
   if (!other) return res.status(404).json({ error: "Пользователь не найден" });
-  res.json(getConversation(req.user.id, req.params.userId));
+  res.json(await getConversation(req.user.id, req.params.userId));
 });
 
 export default router;

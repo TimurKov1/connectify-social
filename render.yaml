@@ -12,3 +12,5 @@ services:
         generateValue: true
       - key: CLIENT_ORIGIN
         value: http://localhost:5173
+      - key: DATABASE_URL
+        sync: false

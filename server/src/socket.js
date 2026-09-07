@@ -22,10 +22,10 @@ export function setupSocket(io) {
     socket.join(userId);
     io.emit("presence", { userId, online: true });
 
-    socket.on("message:send", ({ to, text }) => {
+    socket.on("message:send", async ({ to, text }) => {
       const trimmed = (text || "").trim();
       if (!trimmed || !to) return;
-      if (!findUserById(to)) return;
+      if (!(await findUserById(to))) return;
 
       const message = {
         id: randomUUID(),
@@ -35,7 +35,7 @@ export function setupSocket(io) {
         text: trimmed,
         createdAt: Date.now(),
       };
-      addMessage(message);
+      await addMessage(message);
 
       io.to(to).emit("message:new", message);
       io.to(userId).emit("message:new", message);

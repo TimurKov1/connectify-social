@@ -1,3 +1,4 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { createServer } from "http";
@@ -5,6 +6,7 @@ import { Server } from "socket.io";
 import authRoutes from "./routes/auth.js";
 import userRoutes from "./routes/users.js";
 import messageRoutes from "./routes/messages.js";
+import { initDb } from "./db.js";
 import { setupSocket } from "./socket.js";
 
 const PORT = process.env.PORT || 4000;
@@ -35,6 +37,8 @@ const io = new Server(httpServer, {
   cors: { origin: corsOrigin },
 });
 setupSocket(io);
+
+await initDb();
 
 httpServer.listen(PORT, () => {
   console.log(`Server listening on http://localhost:${PORT}`);
